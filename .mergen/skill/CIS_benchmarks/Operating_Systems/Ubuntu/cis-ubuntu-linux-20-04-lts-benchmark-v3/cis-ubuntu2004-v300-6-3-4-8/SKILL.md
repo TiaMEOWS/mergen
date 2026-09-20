@@ -5,6 +5,8 @@ category: cis-logging
 version: "3.0.0"
 tags: [cis, ubuntu, linux, ubuntu-20.04, auditing, auditd]
 severity_boost: {}
+description: "6.3.4.8 Ensure audit tools mode is configured (Automated)"
+
 ---
 
 # 6.3.4.8 Ensure audit tools mode is configured (Automated)

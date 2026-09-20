@@ -10,6 +10,8 @@ tags:
   - auditd
 category: cis-logging
 severity_boost: {}
+description: "CIS Ubuntu 20.04 LTS Benchmark v3.0.0 - 6.3.3.21"
+
 ---
 
 # CIS Ubuntu 20.04 LTS Benchmark v3.0.0 - 6.3.3.21
