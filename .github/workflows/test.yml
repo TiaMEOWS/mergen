@@ -3,7 +3,7 @@ name: test
 on:
   push:
     branches:
-      - dev
+      - main
   pull_request:
   workflow_dispatch:
 
@@ -28,8 +28,8 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config --global user.email "bot@mergen.dev"
-          git config --global user.name "mergen"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
 
       - name: Run unit tests
         run: bun turbo test

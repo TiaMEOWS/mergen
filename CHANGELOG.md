@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.0] - 2026-09-21 — Mergen fork
+
+### Changed
+- Full rebrand from CyberStrike to Mergen (8.4K files, zero leftover refs)
+- New default TUI theme "Steppe Night" (amber/charcoal, brand palette)
+- Self-upgrade now pulls from GitHub Releases (no hosted domain dependency)
+- Docs/schema links point to this repository
+
+### Added
+- `mcp-security` skill: MCP server attack methodology (tool poisoning, rug pulls, auth bypass)
+- Brand banner and identity assets
+
+### Removed
+- Hosted SaaS packages: console, enterprise, slack, containers
+- Zen credits/gateway marketing flows and paywalled-tool gating
+- Remote web-UI proxy fallback (web UI is served locally only now)
+- Upstream release/telemetry workflows (sign-cli, publish, deploy, stats...); kept CI: test + typecheck + codeql
+- Upstream `.claude` auto-approve permissions
+
 All notable changes to Mergen are documented in this file.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versions follow [Semantic Versioning](https://semver.org/).

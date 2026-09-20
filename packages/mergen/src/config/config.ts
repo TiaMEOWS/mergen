@@ -68,7 +68,7 @@ export namespace Config {
   export const state = Instance.state(async () => {
     const auth = await Auth.all()
 
-    // Config loading order (low -> high precedence): https://mergen.dev/docs/config#precedence-order
+    // Config loading order (low -> high precedence): https://github.com/TiaMEOWS/mergen
     // 1) Remote .well-known/mergen (org defaults)
     // 2) Global config (~/.config/mergen/mergen.json{,c})
     // 3) Custom config (MERGEN_CONFIG)
@@ -1106,7 +1106,7 @@ export namespace Config {
       command: z
         .record(z.string(), Command)
         .optional()
-        .describe("Command configuration, see https://mergen.dev/docs/commands"),
+        .describe("Command configuration, see https://github.com/TiaMEOWS/mergen"),
       skills: Skills.optional().describe("Additional skill folder paths"),
       watcher: z
         .object({
@@ -1171,7 +1171,7 @@ export namespace Config {
         })
         .catchall(Agent)
         .optional()
-        .describe("Agent configuration, see https://mergen.dev/docs/agents"),
+        .describe("Agent configuration, see https://github.com/TiaMEOWS/mergen"),
       provider: z
         .record(z.string(), Provider)
         .optional()

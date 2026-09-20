@@ -253,9 +253,9 @@ export namespace ToolRegistry {
     const result = await Promise.all(
       tools
         .filter((t) => {
-          // Enable websearch/codesearch for zen users OR via enable flag
+          // websearch/codesearch are opt-in via flag
           if (t.id === "codesearch" || t.id === "websearch") {
-            return model.providerID === "mergen" || Flag.MERGEN_ENABLE_EXA
+            return Flag.MERGEN_ENABLE_EXA
           }
 
           // use apply tool in same format as codex

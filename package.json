@@ -15,9 +15,7 @@
   "workspaces": {
     "packages": [
       "packages/*",
-      "packages/console/*",
       "packages/sdk/js",
-      "packages/slack",
       "packages/hackbrowser"
     ],
     "catalog": {

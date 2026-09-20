@@ -6,7 +6,6 @@ import { describeRoute, generateSpecs, validator, resolver, openAPIRouteHandler 
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { streamSSE } from "hono/streaming"
-import { proxy } from "hono/proxy"
 import z from "zod"
 import { Provider } from "../provider/provider"
 import { NamedError } from "@mergen-io/util/error"
@@ -574,10 +573,10 @@ export namespace Server {
           },
         )
         .all("/*", async (c) => {
-          // In serve (API-only) mode, don't serve web UI — let app.mergen.dev handle it
+          // In serve (API-only) mode, don't serve the web UI
           if (!_serveWebUI)
             return c.json(
-              { error: "API-only mode. Use app.mergen.dev or 'mergen web' for the web interface." },
+              { error: "API-only mode. Use 'mergen web' for the web interface." },
               404,
             )
 
@@ -637,23 +636,10 @@ export namespace Server {
             }
           }
 
-          // Remote fallback — proxy to app.mergen.dev if deployed
-          try {
-            const response = await proxy(`https://app.mergen.dev${reqPath}`, {
-              ...c.req,
-              headers: {
-                ...c.req.raw.headers,
-                host: "app.mergen.dev",
-              },
-            })
-            response.headers.set("Content-Security-Policy", csp)
-            return response
-          } catch {
-            return c.json(
-              { error: "Web UI not available. Run 'bun run build' in packages/app/ or deploy app.mergen.dev" },
-              503,
-            )
-          }
+          return c.json(
+            { error: "Web UI not available. Run 'bun run build' in packages/app/ first." },
+            503,
+          )
         }) as unknown as Hono,
   )
 

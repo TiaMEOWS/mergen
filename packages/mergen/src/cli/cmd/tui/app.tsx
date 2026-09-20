@@ -673,7 +673,7 @@ function App() {
         DialogAlert.show(
           dialog,
           "Warning",
-          "While openrouter is a convenient way to access LLMs your request will often be routed to subpar providers that do not work well in our testing.\n\nFor reliable access to models check out Mergen Zen\nhttps://mergen.dev/zen",
+          "While OpenRouter is a convenient way to access LLMs, requests are often routed to lower-quality providers.\n\nFor reliable results use a first-party provider (Anthropic, OpenAI) with your own API key.",
         ).then(() => kv.set("openrouter_warning", true))
       })
     }

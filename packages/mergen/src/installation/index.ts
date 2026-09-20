@@ -132,7 +132,7 @@ export namespace Installation {
     let cmd
     switch (method) {
       case "curl":
-        cmd = $`curl -fsSL https://mergen.dev/install | bash`.env({
+        cmd = $`curl -fsSL https://raw.githubusercontent.com/TiaMEOWS/mergen/main/install | bash`.env({
           ...process.env,
           VERSION: target,
         })
