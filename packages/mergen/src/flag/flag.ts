@@ -44,6 +44,10 @@ export namespace Flag {
   export const MERGEN_DISABLE_MCP_GUARD = truthy("MERGEN_DISABLE_MCP_GUARD")
   /** "block" (default) hides poisoned tools from the agent; "warn" only notifies. */
   export const MERGEN_MCP_GUARD = process.env["MERGEN_MCP_GUARD"] ?? "block"
+
+  export const MERGEN_DISABLE_SCOPE_FIREWALL = truthy("MERGEN_DISABLE_SCOPE_FIREWALL")
+  export const MERGEN_SCOPE_MODE: "block" | "warn" = process.env["MERGEN_SCOPE_MODE"] === "warn" ? "warn" : "block"
+  export const MERGEN_SCOPE_FILE = process.env["MERGEN_SCOPE_FILE"]
   export const MERGEN_ENABLE_EXA =
     truthy("MERGEN_ENABLE_EXA") || MERGEN_EXPERIMENTAL || truthy("MERGEN_EXPERIMENTAL_EXA")
   export const MERGEN_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS = number(

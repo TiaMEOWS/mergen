@@ -56,6 +56,8 @@ import { EnsureToolsTool } from "./ensure-tools"
 import { MethodologyStatusTool } from "./methodology-status"
 import { AttackScriptTool } from "./attack-script"
 import { GenerateReportTool } from "./generate-report"
+import { Scope } from "../scope"
+import { ScopeFirewall } from "../scope/firewall"
 import { EbpfTool } from "./ebpf"
 import { WinhookTool } from "./winhook"
 import { MachookTool } from "./machook"
@@ -71,6 +73,18 @@ import { CloudAuditTool } from "./cloud-audit"
 import { K8sAuditTool } from "./k8s-audit"
 import { CiAuditTool } from "./ci-audit"
 import { CipipeTool } from "./cipipe"
+
+// SCOPE FIREWALL -- tool id -> egress-target extractor. Every listed tool gets its
+// would-be network targets checked against scope.json BEFORE execute; see src/scope/.
+const SCOPE_EGRESS: Record<string, (args: any) => (string | undefined)[]> = {
+  bash: (a) => ScopeFirewall.hostsFromCommand(a.command ?? ""),
+  webfetch: (a) => [a.url],
+  hackbrowser: (a) => [a.target],
+  http_replay: (a) => [a.target?.url],
+  http_replay_raw: (a) => [a.target_url],
+  inject_probe: (a) => [a.target?.url],
+  attack_script: (a) => ScopeFirewall.hostsFromArgs(a.args ?? []),
+}
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -271,6 +285,21 @@ export namespace ToolRegistry {
         .map(async (t) => {
           using _ = log.time(t.id)
           const tool = await t.init({ agent })
+          // SCOPE FIREWALL -- hard egress enforcement for network-capable tools.
+          // Inactive unless a scope.json exists; see src/scope/firewall.ts.
+          const extract = SCOPE_EGRESS[t.id]
+          if (extract) {
+            const inner = tool.execute
+            tool.execute = async (args: never, ctx: never) => {
+              const check = await Scope.check(t.id, extract(args))
+              if (check && check.violations.length > 0) {
+                if (check.mode === "block") throw new Error(check.message)
+                const result = await inner(args, ctx)
+                return { ...result, output: check.message + "\n\n" + result.output }
+              }
+              return inner(args, ctx)
+            }
+          }
           const output = {
             description: tool.description,
             parameters: tool.parameters,

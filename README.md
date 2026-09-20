@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <i>The only AI harness that can't leave scope, can't load poisoned tools, and can't claim what it can't prove.</i>
+</p>
+
+<p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg" alt="License"/></a>
   <img src="https://img.shields.io/badge/runtime-bun%201.3-black" alt="bun"/>
   <img src="https://img.shields.io/badge/attack_skills-40%2B-e8b14b" alt="skills"/>
@@ -49,7 +53,13 @@ guided by a large curated knowledge base of real techniques.
 - **Replayable PoC export** *(unique)*: `export_poc` turns every confirmed finding into a
   standalone re-runnable script (curl `.sh` + stdlib-python `.py`) that replays the exploit
   request and greps for the recorded evidence markers — exit 0 means it reproduces.
-  Candidates and duplicates are refused.
+    Candidates and duplicates are refused.
+- **Scope Firewall** *(unique)*: drop a `scope.json` in the project root (see
+  `scope.example.json`) and every network-capable tool — bash, webfetch, hackbrowser,
+  http_replay, inject_probe, attack_script — is hard-blocked from touching an
+  out-of-scope host. Deny rules beat allow rules, loopback stays open for local PoC
+  targets, an invalid scope file fails closed, and every block is audit-logged to
+  `.mergen/firewall-audit.jsonl`. Disable with `MERGEN_DISABLE_SCOPE_FIREWALL=1`.
 - **HackBrowser**: capture and replay real browser traffic during engagements.
 - **Brand-new look**: the "Steppe Night" theme — deep charcoal blues with the
   golden-amber of Mergen's bow.
@@ -62,6 +72,7 @@ guided by a large curated knowledge base of real techniques.
 | Rug-pull detection (baseline diff) | ✅ | — | — |
 | Evidence-bound findings (no proof, no severity) | ✅ candidates can't be confirmed without executable evidence | — | — |
 | Replayable PoC export per finding | ✅ curl + python, evidence-marker verified | — | — |
+| Scope firewall (technical egress enforcement) | ✅ out-of-scope hosts blocked at the tool layer | — | — |
 | Hosted gateway / paywall | none — BYOK only | Zen credits | varies |
 | Phones home | never — local-first | proxied to hosted domain | varies |
 | Attack skill library | 40+ disciplines, 7.6K files | varies | prompt snippets |

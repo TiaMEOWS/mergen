@@ -1,0 +1,6 @@
+{
+  "$schema": "scope file for the Mergen Scope Firewall -- copy to scope.json (or .mergen/scope.json)",
+  "allow": ["*.example.com", "example.com", "10.0.0.0/8", "re:^api-\\d+\\.target\\.io$"],
+  "deny": ["internal.example.com"],
+  "mode": "block"
+}
