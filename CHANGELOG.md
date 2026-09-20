@@ -18,10 +18,10 @@
 - 18 broken symlinks materialized for Windows checkouts
 
 
-## [1.0.0] - 2026-09-21 — Mergen fork
+## [1.0.0] - 2026-09-21
 
 ### Changed
-- Full rebrand from CyberStrike to Mergen (8.4K files, zero leftover refs)
+- Full rebrand to Mergen (8.4K files, zero leftover refs)
 - New default TUI theme "Steppe Night" (amber/charcoal, brand palette)
 - Self-upgrade now pulls from GitHub Releases (no hosted domain dependency)
 - Docs/schema links point to this repository

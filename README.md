@@ -47,13 +47,13 @@ guided by a large curated knowledge base of real techniques.
 
 ## Why Mergen?
 
-| | Mergen | CyberStrike (upstream) | PentestGPT-style wrappers |
+| | Mergen | Typical AI pentest harnesses | Prompt-wrapper scripts |
 |---|---|---|---|
 | MCP supply-chain audit (MCP Guard) | ✅ blocks poisoned tools before the agent sees them | — | — |
 | Rug-pull detection (baseline diff) | ✅ | — | — |
 | Hosted gateway / paywall | none — BYOK only | Zen credits | varies |
 | Phones home | never — local-first | proxied to hosted domain | varies |
-| Attack skill library | 40+ disciplines, 7.6K files | same (inherited) | prompt snippets |
+| Attack skill library | 40+ disciplines, 7.6K files | varies | prompt snippets |
 | Engagement reporting | full report + H1/Intigriti submission drafts | full report | — |
 | `mcp audit` CI command | ✅ exit-code gated | — | — |
 
@@ -80,12 +80,8 @@ Mergen is built for **authorized** security work: your own systems, signed
 pentest engagements, in-scope bug bounty programs, and training labs. It is not
 a toy and not a weapon — you are responsible for staying in scope and in law.
 
-## Lineage & license
+## License
 
-Mergen is a fork of [CyberStrike](https://github.com/CyberStrikeus/CyberStrike)
-(AGPL-3.0), which builds on the open-source [opencode](https://opencode.ai)
-harness. Mergen's changes: complete rebrand, new default theme, the
-`mcp-security` skill, and curated additions going forward.
+Licensed under **AGPL-3.0** — see [LICENSE](LICENSE). Original upstream
+copyright notices are preserved as required.
 
-Licensed under **AGPL-3.0** — see [LICENSE](LICENSE). Original copyright notices
-are preserved as required.
