@@ -155,6 +155,11 @@ function formatSubmissionDrafts(vulns: Vulnerability.Info[]): string {
     lines.push("", "### Summary", "", v.description)
     if (v.steps_to_reproduce) lines.push("", "### Steps to Reproduce", "", v.steps_to_reproduce)
     if (v.poc) lines.push("", "### Proof of Concept", "", "```", v.poc, "```")
+    if (v.id)
+      lines.push(
+        "",
+        `**Replayable PoC:** \`export_poc(id: "${v.id}")\` generates a runnable verification script (curl/python) that replays the request and greps for the recorded evidence markers.`,
+      )
     if (v.business_impact) lines.push("", "### Business Impact", "", v.business_impact)
     if (v.recommendation) lines.push("", "### Suggested Remediation", "", v.recommendation)
     lines.push("", "---", "*Draft — verify every claim manually before submitting to HackerOne/Intigriti.*")

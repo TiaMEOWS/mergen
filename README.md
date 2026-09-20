@@ -40,7 +40,16 @@ guided by a large curated knowledge base of real techniques.
   for poisoning, hidden instructions, and command-injection surface **before** the
   agent is allowed to use it — the same detection engine as
   [mcp-sentinel](https://github.com/TiaMEOWS/mcp-sentinel), embedded in the harness.
-  Disable with `MERGEN_DISABLE_MCP_GUARD=1`.
+    Disable with `MERGEN_DISABLE_MCP_GUARD=1`.
+- **Evidence-bound findings** *(unique)*: an execution-dependent finding filed without
+  executable evidence is recorded as an `UNCONFIRMED CANDIDATE` capped at medium — and it
+  can never leave that state until real proof (observed alert/flag/checker output) is
+  supplied, via either `report_vulnerability` upgrade or `triage_vulnerability` with
+  `execution_evidence`. No evidence, no severity.
+- **Replayable PoC export** *(unique)*: `export_poc` turns every confirmed finding into a
+  standalone re-runnable script (curl `.sh` + stdlib-python `.py`) that replays the exploit
+  request and greps for the recorded evidence markers — exit 0 means it reproduces.
+  Candidates and duplicates are refused.
 - **HackBrowser**: capture and replay real browser traffic during engagements.
 - **Brand-new look**: the "Steppe Night" theme — deep charcoal blues with the
   golden-amber of Mergen's bow.
@@ -51,6 +60,8 @@ guided by a large curated knowledge base of real techniques.
 |---|---|---|---|
 | MCP supply-chain audit (MCP Guard) | ✅ blocks poisoned tools before the agent sees them | — | — |
 | Rug-pull detection (baseline diff) | ✅ | — | — |
+| Evidence-bound findings (no proof, no severity) | ✅ candidates can't be confirmed without executable evidence | — | — |
+| Replayable PoC export per finding | ✅ curl + python, evidence-marker verified | — | — |
 | Hosted gateway / paywall | none — BYOK only | Zen credits | varies |
 | Phones home | never — local-first | proxied to hosted domain | varies |
 | Attack skill library | 40+ disciplines, 7.6K files | varies | prompt snippets |
