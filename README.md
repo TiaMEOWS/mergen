@@ -23,6 +23,10 @@ Mergen is an **agentic offensive-security harness**: an AI operator (TUI + web) 
 reads targets, plans attack chains, and executes authorized pentest workflows —
 guided by a large curated knowledge base of real techniques.
 
+<p align="center"><img src="assets/demo.gif" alt="Mergen detecting a poisoned MCP server on startup" width="820"/></p>
+
+*MCP Guard in action: Mergen connects to a configured MCP server, and before the agent sees any tool, the guard flags a poisoned `read_notes` description trying to exfiltrate `~/.ssh/id_rsa`.*
+
 - **40+ attack disciplines** as structured skills: SSRF, SSTI, XXE, request
   smuggling, race conditions, subdomain takeover, JWT, GraphQL, prototype
   pollution, CORS, host-header, IDOR automation, WebSocket, cache poisoning,
