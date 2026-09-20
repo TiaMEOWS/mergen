@@ -39,3 +39,6 @@ packages/mergen/test/proxy-eval/
 
 # Exported session transcripts and reports
 session-*.md
+__pycache__/
+*.pyc
+*.tar.gz
