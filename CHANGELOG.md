@@ -9,6 +9,8 @@
 - Docs/schema links point to this repository
 
 ### Added
+- MCP Guard: pre-load security audit of MCP server tools (MS-P01..P08 + capability correlation), toast + log surfacing, `MERGEN_DISABLE_MCP_GUARD` opt-out
+
 - `mcp-security` skill: MCP server attack methodology (tool poisoning, rug pulls, auth bypass)
 - Brand banner and identity assets
 

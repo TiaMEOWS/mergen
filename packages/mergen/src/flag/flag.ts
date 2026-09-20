@@ -41,6 +41,7 @@ export namespace Flag {
   const copy = process.env["MERGEN_EXPERIMENTAL_DISABLE_COPY_ON_SELECT"]
   export const MERGEN_EXPERIMENTAL_DISABLE_COPY_ON_SELECT =
     copy === undefined ? process.platform === "win32" : truthy("MERGEN_EXPERIMENTAL_DISABLE_COPY_ON_SELECT")
+  export const MERGEN_DISABLE_MCP_GUARD = truthy("MERGEN_DISABLE_MCP_GUARD")
   export const MERGEN_ENABLE_EXA =
     truthy("MERGEN_ENABLE_EXA") || MERGEN_EXPERIMENTAL || truthy("MERGEN_EXPERIMENTAL_EXA")
   export const MERGEN_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS = number(

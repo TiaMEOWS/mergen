@@ -23,6 +23,8 @@ import { McpOAuthProvider } from "./oauth-provider"
 import { McpOAuthCallback } from "./oauth-callback"
 import { McpAuth } from "./auth"
 import { BoltAuth } from "./bolt-auth"
+import { McpGuard } from "./guard"
+import { Flag } from "../flag/flag"
 import { BusEvent } from "../bus/bus-event"
 import { Bus } from "@/bus"
 import { TuiEvent } from "@/cli/cmd/tui/event"
@@ -576,6 +578,20 @@ export namespace MCP {
           status: "failed" as const,
           error: "Failed to get tools",
         },
+      }
+    }
+
+    if (!Flag.MERGEN_DISABLE_MCP_GUARD) {
+      const findings = McpGuard.inspect(result.tools, key)
+      if (findings.length > 0) {
+        const top = McpGuard.worst(findings)
+        const severe = top && (top.severity === "critical" || top.severity === "high")
+        Bus.publish(TuiEvent.ToastShow, {
+          title: "MCP Guard",
+          message: `Server "${key}": ${findings.length} security finding(s) — worst: ${top?.severity.toUpperCase()} ${top?.id} (${top?.title}). Details in log. Disable: MERGEN_DISABLE_MCP_GUARD=1`,
+          variant: severe ? "error" : "warning",
+          duration: 12000,
+        }).catch((e) => log.debug("failed to show guard toast", { error: e }))
       }
     }
 

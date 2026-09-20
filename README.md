@@ -32,6 +32,11 @@ guided by a large curated knowledge base of real techniques.
   (AWS/Azure/GCP), K8s, AD/Kerberos, Linux/Windows/macOS post-exploitation.
 - **Methodology + memory**: engagement workflows, per-target memory, and
   chain-of-attack reasoning instead of one-shot payloads.
+- **MCP Guard** *(unique)*: Mergen audits every configured MCP server's tool metadata
+  for poisoning, hidden instructions, and command-injection surface **before** the
+  agent is allowed to use it — the same detection engine as
+  [mcp-sentinel](https://github.com/TiaMEOWS/mcp-sentinel), embedded in the harness.
+  Disable with `MERGEN_DISABLE_MCP_GUARD=1`.
 - **HackBrowser**: capture and replay real browser traffic during engagements.
 - **Brand-new look**: the "Steppe Night" theme — deep charcoal blues with the
   golden-amber of Mergen's bow.
