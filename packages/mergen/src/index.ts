@@ -1,6 +1,7 @@
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import { RunCommand } from "./cli/cmd/run"
+import { CampaignCommand } from "./cli/cmd/campaign"
 import { GenerateCommand } from "./cli/cmd/generate"
 import { Log } from "./util/log"
 import { AuthCommand } from "./cli/cmd/auth"
@@ -127,6 +128,7 @@ const cli = yargs(hideBin(process.argv))
   .command(AttachCommand)
   .command(HackbrowserCommand)
   .command(RunCommand)
+  .command(CampaignCommand)
   .command(GenerateCommand)
   .command(DebugCommand)
   .command(AuthCommand)

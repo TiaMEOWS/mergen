@@ -59,7 +59,11 @@ guided by a large curated knowledge base of real techniques.
   http_replay, inject_probe, attack_script — is hard-blocked from touching an
   out-of-scope host. Deny rules beat allow rules, loopback stays open for local PoC
   targets, an invalid scope file fails closed, and every block is audit-logged to
-  `.mergen/firewall-audit.jsonl`. Disable with `MERGEN_DISABLE_SCOPE_FIREWALL=1`.
+    `.mergen/firewall-audit.jsonl`. Disable with `MERGEN_DISABLE_SCOPE_FIREWALL=1`.
+- **Campaign mode** *(autonomous)*: `mergen campaign <target>` drives a full
+  engagement with no human in the loop — recon, mapping, per-class testing,
+  evidence-bound confirmation, then report + PoC export. Scope is derived (or
+  verified) before the first packet; the firewall stays the hard boundary.
 - **HackBrowser**: capture and replay real browser traffic during engagements.
 - **Brand-new look**: the "Steppe Night" theme — deep charcoal blues with the
   golden-amber of Mergen's bow.
@@ -73,6 +77,7 @@ guided by a large curated knowledge base of real techniques.
 | Evidence-bound findings (no proof, no severity) | ✅ candidates can't be confirmed without executable evidence | — | — |
 | Replayable PoC export per finding | ✅ curl + python, evidence-marker verified | — | — |
 | Scope firewall (technical egress enforcement) | ✅ out-of-scope hosts blocked at the tool layer | — | — |
+| Autonomous campaign mode | ✅ one command, scope-enforced end to end | — | — |
 | Hosted gateway / paywall | none — BYOK only | Zen credits | varies |
 | Phones home | never — local-first | proxied to hosted domain | varies |
 | Attack skill library | 40+ disciplines, 7.6K files | varies | prompt snippets |
@@ -95,6 +100,18 @@ bun install
 bun run dev        # TUI
 bun run dev:web    # web app
 ```
+
+### Campaign mode (autonomous)
+
+```bash
+mergen campaign https://target.example.com            # scope derived + enforced automatically
+mergen campaign 10.0.0.5 --scope 10.0.0.0/24          # extra scope items
+```
+
+One command, no human in the loop: permissions auto-allow, the question tool stays
+off, and the Scope Firewall is the hard boundary. If a `scope.json` already exists,
+the target must be in it -- campaigns never edit an existing scope. The run ends
+with a full report plus exported replayable PoCs under `.mergen/findings/`.
 
 ## Responsible use
 
