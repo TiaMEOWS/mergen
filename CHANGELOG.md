@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.1.0] - 2026-09-21
+
+### Added
+- **MCP Guard blocking mode** (default): tools with critical/high findings are
+  hidden from the agent entirely; `MERGEN_MCP_GUARD=warn` restores warn-only
+- **Rug-pull baseline**: tool fingerprints persist per server; description/schema
+  drift raises MS-R01..R05 findings on reconnect
+- `mergen mcp audit [--json]`: standalone security audit of configured MCP
+  servers, exit-code gated for CI
+- Report tool: `submission_drafts` section — per-finding HackerOne/Intigriti
+  drafts (severity, CWE, steps, PoC, impact, remediation)
+- MERGEN ASCII logo; README demo GIF, comparison table
+
+### Fixed
+- Test preload: Windows-safe temp-dir cleanup (EBUSY retry)
+- 18 broken symlinks materialized for Windows checkouts
+
+
 ## [1.0.0] - 2026-09-21 — Mergen fork
 
 ### Changed

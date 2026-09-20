@@ -31,6 +31,8 @@ import { TuiEvent } from "@/cli/cmd/tui/event"
 import open from "open"
 
 export namespace MCP {
+  /** Tools hidden from the agent by McpGuard, per server key. */
+  const blockedByServer = new Map<string, Set<string>>()
   const log = Log.create({ service: "mcp" })
   const DEFAULT_TIMEOUT = 30_000
 
@@ -582,16 +584,28 @@ export namespace MCP {
     }
 
     if (!Flag.MERGEN_DISABLE_MCP_GUARD) {
-      const findings = McpGuard.inspect(result.tools, key)
+      const staticFindings = McpGuard.inspect(result.tools, key)
+      const drift = await McpGuard.baselineDiff(key, result.tools).catch((e) => {
+        log.debug("guard baseline failed", { error: e })
+        return { findings: [] as McpGuard.Finding[], firstSeen: true }
+      })
+      const findings = [...staticFindings, ...drift.findings]
+      const blocked = McpGuard.blockedToolNames(findings, Flag.MERGEN_MCP_GUARD)
+      blockedByServer.set(key, blocked)
       if (findings.length > 0) {
         const top = McpGuard.worst(findings)
         const severe = top && (top.severity === "critical" || top.severity === "high")
+        const blockNote =
+          blocked.size > 0 ? ` ${blocked.size} tool(s) blocked.` : " Warn-only (MERGEN_MCP_GUARD=warn)."
         Bus.publish(TuiEvent.ToastShow, {
           title: "MCP Guard",
-          message: `Server "${key}": ${findings.length} security finding(s) — worst: ${top?.severity.toUpperCase()} ${top?.id} (${top?.title}). Details in log. Disable: MERGEN_DISABLE_MCP_GUARD=1`,
+          message: `Server "${key}": ${findings.length} finding(s) — worst: ${top?.severity.toUpperCase()} ${top?.id} (${top?.title}).${blockNote}`,
           variant: severe ? "error" : "warning",
           duration: 12000,
         }).catch((e) => log.debug("failed to show guard toast", { error: e }))
+        if (blocked.size > 0) {
+          log.warn("mcp guard blocked tools", { key, tools: [...blocked] })
+        }
       }
     }
 
@@ -1025,7 +1039,12 @@ export namespace MCP {
       const boltEntry = boltConfig[clientName]
       const entry = isMcpConfigured(mcpConfig) ? mcpConfig : undefined
       const timeout = entry?.timeout ?? boltEntry?.timeout ?? defaultTimeout
+      const blocked = blockedByServer.get(clientName)
       for (const mcpTool of toolsResult.tools) {
+        if (blocked?.has(mcpTool.name)) {
+          log.warn("mcp guard: tool hidden from agent", { clientName, tool: mcpTool.name })
+          continue
+        }
         const sanitizedClientName = clientName.replace(/[^a-zA-Z0-9_-]/g, "_")
         const sanitizedToolName = mcpTool.name.replace(/[^a-zA-Z0-9_-]/g, "_")
         result[sanitizedClientName + "_" + sanitizedToolName] = await convertMcpTool(mcpTool, client, timeout)

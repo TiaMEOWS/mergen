@@ -42,6 +42,7 @@ const AGENT_CODENAMES: Record<string, string> = {
 const ALL_SECTIONS = [
   "executive_summary",
   "findings",
+  "submission_drafts",
   "coverage",
   "methodology",
   "chains",
@@ -90,6 +91,8 @@ export const GenerateReportTool = Tool.define("generate_report", {
 
     if (sections.includes("findings")) parts.push(formatVulnTable(vulns))
 
+    if (sections.includes("submission_drafts")) parts.push(formatSubmissionDrafts(vulns))
+
     if (sections.includes("coverage")) parts.push(formatCoverage(coverage, assetCoverage, coverageNotes))
 
     if (sections.includes("methodology")) parts.push(formatMethodologySection(state))
@@ -124,6 +127,41 @@ export const GenerateReportTool = Tool.define("generate_report", {
 })
 
 // --- Helper Functions ---
+
+
+const CVSS_ESTIMATE: Record<string, string> = {
+  critical: "9.0-10.0",
+  high: "7.0-8.9",
+  medium: "4.0-6.9",
+  low: "0.1-3.9",
+  info: "0.0",
+}
+
+function formatSubmissionDrafts(vulns: Vulnerability.Info[]): string {
+  const submittable = vulns.filter((v) => v.candidate == null && !v.duplicate_of)
+  if (submittable.length === 0) {
+    return "## Submission Drafts\n\nNo confirmed findings eligible for submission."
+  }
+  const blocks = submittable.map((v, i) => {
+    const severity = typeof v.severity === "string" ? v.severity : "medium"
+    const lines = [
+      `## Submission Draft ${i + 1}: ${v.title}`,
+      "",
+      `**Severity:** ${severity.toUpperCase()} (CVSS est. ${CVSS_ESTIMATE[severity] ?? "4.0-6.9"})`,
+    ]
+    if (v.cwe_id) lines.push(`**CWE:** ${v.cwe_id}`)
+    if (v.endpoint) lines.push(`**Endpoint:** ${v.endpoint}`)
+    if (v.attack_vector) lines.push(`**Attack Vector:** ${v.attack_vector}`)
+    lines.push("", "### Summary", "", v.description)
+    if (v.steps_to_reproduce) lines.push("", "### Steps to Reproduce", "", v.steps_to_reproduce)
+    if (v.poc) lines.push("", "### Proof of Concept", "", "```", v.poc, "```")
+    if (v.business_impact) lines.push("", "### Business Impact", "", v.business_impact)
+    if (v.recommendation) lines.push("", "### Suggested Remediation", "", v.recommendation)
+    lines.push("", "---", "*Draft — verify every claim manually before submitting to HackerOne/Intigriti.*")
+    return lines.join("\n")
+  })
+  return blocks.join("\n\n")
+}
 
 function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000)

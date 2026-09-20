@@ -6,6 +6,11 @@
  * MS-P01..P08 poisoning indicators plus capability correlation (MS-D01/D06).
  */
 
+import { createHash } from "node:crypto"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
+import path from "node:path"
+
+import { Global } from "../global"
 import { Log } from "../util/log"
 
 const log = Log.create({ service: "mcp-guard" })
@@ -186,5 +191,132 @@ export namespace McpGuard {
 
   export function worst(findings: Finding[]): Finding | undefined {
     return [...findings].sort((a, b) => ORDER[a.severity] - ORDER[b.severity])[0]
+  }
+
+
+  // ---------------------------------------------------------------------------
+  // Blocking policy
+  // ---------------------------------------------------------------------------
+
+  const BLOCK_LEVELS: Severity[] = ["critical", "high"]
+
+  /** Default policy: critical/high findings block the tool from the agent. */
+  export function shouldBlock(finding: Finding, mode: string): boolean {
+    if (mode === "warn") return false
+    return BLOCK_LEVELS.includes(finding.severity)
+  }
+
+  /** Names of tools that must not be exposed to the agent. */
+  export function blockedToolNames(findings: Finding[], mode: string): Set<string> {
+    const blocked = new Set<string>()
+    for (const finding of findings) {
+      if (finding.tool && shouldBlock(finding, mode)) blocked.add(finding.tool)
+    }
+    return blocked
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rug-pull baseline: persist tool fingerprints, diff on reconnect
+  // ---------------------------------------------------------------------------
+
+  interface BaselineEntry {
+    capturedAt: string
+    tools: Record<string, { fingerprint: string; description: string }>
+  }
+
+  interface BaselineFile {
+    version: number
+    servers: Record<string, BaselineEntry>
+  }
+
+  function baselinePath(): string {
+    return path.join(Global.Path.data, "mcp-guard-baseline.json")
+  }
+
+  function fingerprint(tool: GuardedTool): string {
+    return createHash("sha256")
+      .update(
+        JSON.stringify({
+          d: tool.description ?? "",
+          s: tool.inputSchema ?? {},
+          a: tool.annotations ?? {},
+        }),
+      )
+      .digest("hex")
+      .slice(0, 16)
+  }
+
+  async function loadBaseline(): Promise<BaselineFile> {
+    try {
+      const raw = await readFile(baselinePath(), "utf-8")
+      const parsed = JSON.parse(raw) as BaselineFile
+      parsed.servers ??= {}
+      return parsed
+    } catch {
+      return { version: 1, servers: {} }
+    }
+  }
+
+  /** Diff current tools against the stored baseline; then persist the snapshot. */
+  export async function baselineDiff(
+    server: string,
+    tools: GuardedTool[],
+  ): Promise<{ findings: Finding[]; firstSeen: boolean }> {
+    const baseline = await loadBaseline()
+    const previous = baseline.servers[server]
+    const findings: Finding[] = []
+    const current = new Map(tools.map((tool) => [tool.name, tool]))
+
+    if (previous) {
+      for (const name of Object.keys(previous.tools)) {
+        if (!current.has(name)) {
+          findings.push({
+            id: "MS-R01",
+            severity: "medium",
+            title: "Tool removed since baseline",
+            detail: "A previously present tool disappeared from this server.",
+            tool: name,
+          })
+        }
+      }
+      for (const [name, tool] of current) {
+        const old = previous.tools[name]
+        if (!old) {
+          findings.push({
+            id: "MS-R02",
+            severity: "low",
+            title: "New tool since baseline",
+            detail: "A new tool appeared; review it before letting agents use it.",
+            tool: name,
+          })
+          continue
+        }
+        if (old.fingerprint === fingerprint(tool)) continue
+        const descChanged = old.description !== (tool.description ?? "")
+        findings.push({
+          id: descChanged ? "MS-R03" : "MS-R04",
+          severity: descChanged ? "high" : "medium",
+          title: descChanged ? "Tool description changed (possible rug pull)" : "Tool schema changed",
+          detail: descChanged
+            ? "The description changed after first approval — classic rug-pull move."
+            : "The input schema or annotations changed since baseline.",
+          tool: name,
+        })
+      }
+    }
+
+    baseline.servers[server] = {
+      capturedAt: new Date().toISOString(),
+      tools: Object.fromEntries(
+        tools.map((tool) => [
+          tool.name,
+          { fingerprint: fingerprint(tool), description: tool.description ?? "" },
+        ]),
+      ),
+    }
+    await mkdir(path.dirname(baselinePath()), { recursive: true })
+    await writeFile(baselinePath(), JSON.stringify(baseline, null, 2) + "\n", "utf-8")
+
+    return { findings, firstSeen: !previous }
   }
 }

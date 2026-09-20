@@ -45,6 +45,23 @@ guided by a large curated knowledge base of real techniques.
 - **Brand-new look**: the "Steppe Night" theme — deep charcoal blues with the
   golden-amber of Mergen's bow.
 
+## Why Mergen?
+
+| | Mergen | CyberStrike (upstream) | PentestGPT-style wrappers |
+|---|---|---|---|
+| MCP supply-chain audit (MCP Guard) | ✅ blocks poisoned tools before the agent sees them | — | — |
+| Rug-pull detection (baseline diff) | ✅ | — | — |
+| Hosted gateway / paywall | none — BYOK only | Zen credits | varies |
+| Phones home | never — local-first | proxied to hosted domain | varies |
+| Attack skill library | 40+ disciplines, 7.6K files | same (inherited) | prompt snippets |
+| Engagement reporting | full report + H1/Intigriti submission drafts | full report | — |
+| `mcp audit` CI command | ✅ exit-code gated | — | — |
+
+## Platform support
+
+CI-tested on Linux. Windows runs fine for real usage; parts of the upstream
+test suite still assume POSIX path semantics (known limitation — help welcome).
+
 ## Quick start
 
 Requires [Bun](https://bun.sh) 1.3+.

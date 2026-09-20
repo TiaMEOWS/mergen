@@ -10,7 +10,13 @@ import { afterAll } from "bun:test"
 const dir = path.join(os.tmpdir(), "mergen-test-data-" + process.pid)
 await fs.mkdir(dir, { recursive: true })
 afterAll(() => {
-  fsSync.rmSync(dir, { recursive: true, force: true })
+  // Windows: open handles (log files, watchers) can still lock files at teardown.
+  // Retry briefly, then leave the temp dir behind rather than failing the suite.
+  try {
+    fsSync.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+  } catch {
+    // best-effort cleanup; temp dirs are reclaimed by the OS
+  }
 })
 
 process.env["XDG_DATA_HOME"] = path.join(dir, "share")

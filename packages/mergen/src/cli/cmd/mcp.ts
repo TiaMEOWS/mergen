@@ -1,10 +1,12 @@
 import { cmd } from "./cmd"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import * as prompts from "@clack/prompts"
 import { UI } from "../ui"
 import { MCP } from "../../mcp"
+import { McpGuard } from "../../mcp/guard"
 import { McpAuth } from "../../mcp/auth"
 import { McpOAuthProvider } from "../../mcp/oauth-provider"
 import { Config } from "../../config/config"
@@ -56,11 +58,119 @@ export const McpCommand = cmd({
     yargs
       .command(McpAddCommand)
       .command(McpListCommand)
+      .command(McpAuditCommand)
       .command(McpAuthCommand)
       .command(McpLogoutCommand)
       .command(McpDebugCommand)
       .demandCommand(),
   async handler() {},
+})
+
+
+export const McpAuditCommand = cmd({
+  command: "audit",
+  describe: "security-audit configured MCP servers (tool poisoning, rug pulls, dangerous capabilities)",
+  builder: (yargs) =>
+    yargs.option("json", {
+      type: "boolean",
+      describe: "print a machine-readable JSON report",
+      default: false,
+    }),
+  async handler(args) {
+    await Instance.provide({
+      directory: process.cwd(),
+      async fn() {
+        const config = await Config.get()
+        const servers = Object.entries(config.mcp ?? {}).filter((entry): entry is [string, McpConfigured] =>
+          isMcpConfigured(entry[1]),
+        )
+
+        if (servers.length === 0) {
+          prompts.log.warn("No MCP servers configured")
+          return
+        }
+
+        if (!args.json) {
+          UI.empty()
+          prompts.intro("MCP Guard audit")
+        }
+
+        const report: Record<
+          string,
+          { status: string; tools: number; findings: ReturnType<typeof McpGuard.inspect> }
+        > = {}
+        let blocking = 0
+
+        for (const [name, serverConfig] of servers) {
+          if (serverConfig.enabled === false) {
+            report[name] = { status: "disabled", tools: 0, findings: [] }
+            continue
+          }
+
+          let client: Client | undefined
+          try {
+            const transport =
+              serverConfig.type === "local"
+                ? new StdioClientTransport({
+                    command: serverConfig.command[0],
+                    args: serverConfig.command.slice(1),
+                    env: { ...process.env, ...(serverConfig.environment ?? {}) } as Record<string, string>,
+                    stderr: "ignore",
+                  })
+                : new StreamableHTTPClientTransport(new URL(serverConfig.url), {
+                    requestInit: { headers: serverConfig.headers },
+                  })
+            client = new Client({ name: "mergen-guard", version: Installation.VERSION })
+            await client.connect(transport)
+            const tools = (await client.listTools()).tools
+            const staticFindings = McpGuard.inspect(tools, name)
+            const drift = await McpGuard.baselineDiff(name, tools).catch(() => ({
+              findings: [] as McpGuard.Finding[],
+              firstSeen: true,
+            }))
+            const findings = [...staticFindings, ...drift.findings]
+            const blocked = McpGuard.blockedToolNames(findings, "block")
+            blocking += blocked.size
+            report[name] = { status: "audited", tools: tools.length, findings }
+          } catch (error) {
+            report[name] = {
+              status: "unreachable: " + (error instanceof Error ? error.message : String(error)),
+              tools: 0,
+              findings: [],
+            }
+          } finally {
+            await client?.close().catch(() => {})
+          }
+        }
+
+        if (args.json) {
+          console.log(JSON.stringify(report, null, 2))
+        } else {
+          for (const [name, entry] of Object.entries(report)) {
+            if (entry.status !== "audited") {
+              prompts.log.warn(`${name}: ${entry.status}`)
+              continue
+            }
+            prompts.log.info(`${name}: ${entry.tools} tool(s), ${entry.findings.length} finding(s)`)
+            for (const finding of entry.findings) {
+              const line = `[${finding.severity.toUpperCase()}] ${finding.id} ${finding.title}${finding.tool ? ` (tool: ${finding.tool})` : ""}`
+              if (finding.severity === "critical" || finding.severity === "high") {
+                prompts.log.error(line)
+              } else if (finding.severity === "medium") {
+                prompts.log.warn(line)
+              } else {
+                prompts.log.info(line)
+              }
+              if (finding.evidence) prompts.log.message(`    evidence: ${finding.evidence}`)
+            }
+          }
+          prompts.outro(blocking > 0 ? `${blocking} tool(s) would be blocked in the TUI` : "no blocking-level findings")
+        }
+
+        if (blocking > 0) process.exitCode = 1
+      },
+    })
+  },
 })
 
 export const McpListCommand = cmd({
