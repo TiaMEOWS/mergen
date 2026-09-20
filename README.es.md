@@ -1,0 +1,1 @@
+<p align="center">This translation is not maintained for the Mergen fork.<br/>Please read the <a href="README.md">English README</a>.</p>

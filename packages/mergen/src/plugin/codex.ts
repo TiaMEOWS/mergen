@@ -1,0 +1,679 @@
+import type { Hooks, PluginInput } from "@mergen-io/plugin"
+import { Log } from "../util/log"
+import { Installation } from "../installation"
+import { Auth, OAUTH_DUMMY_KEY } from "../auth"
+import os from "os"
+import { ProviderTransform } from "@/provider/transform"
+
+const log = Log.create({ service: "plugin.codex" })
+
+const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
+const ISSUER = "https://auth.openai.com"
+const CODEX_API_ENDPOINT = "https://chatgpt.com/backend-api/codex/responses"
+const OAUTH_PORT = 1455
+const OAUTH_POLLING_SAFETY_MARGIN_MS = 3000
+
+interface PkceCodes {
+  verifier: string
+  challenge: string
+}
+
+async function generatePKCE(): Promise<PkceCodes> {
+  const verifier = generateRandomString(43)
+  const encoder = new TextEncoder()
+  const data = encoder.encode(verifier)
+  const hash = await crypto.subtle.digest("SHA-256", data)
+  const challenge = base64UrlEncode(hash)
+  return { verifier, challenge }
+}
+
+function generateRandomString(length: number): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+  const limit = 256 - (256 % chars.length)
+  let result = ""
+  while (result.length < length) {
+    const bytes = crypto.getRandomValues(new Uint8Array(length - result.length))
+    for (const b of bytes) {
+      if (b < limit) result += chars[b % chars.length]
+      if (result.length === length) break
+    }
+  }
+  return result
+}
+
+function base64UrlEncode(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  const binary = String.fromCharCode(...bytes)
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+}
+
+function generateState(): string {
+  return base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)).buffer)
+}
+
+export interface IdTokenClaims {
+  chatgpt_account_id?: string
+  organizations?: Array<{ id: string }>
+  email?: string
+  "https://api.openai.com/auth"?: {
+    chatgpt_account_id?: string
+  }
+}
+
+export function parseJwtClaims(token: string): IdTokenClaims | undefined {
+  const parts = token.split(".")
+  if (parts.length !== 3) return undefined
+  try {
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString())
+  } catch {
+    return undefined
+  }
+}
+
+export function extractAccountIdFromClaims(claims: IdTokenClaims): string | undefined {
+  return (
+    claims.chatgpt_account_id ||
+    claims["https://api.openai.com/auth"]?.chatgpt_account_id ||
+    claims.organizations?.[0]?.id
+  )
+}
+
+export function extractAccountId(tokens: TokenResponse): string | undefined {
+  if (tokens.id_token) {
+    const claims = parseJwtClaims(tokens.id_token)
+    const accountId = claims && extractAccountIdFromClaims(claims)
+    if (accountId) return accountId
+  }
+  if (tokens.access_token) {
+    const claims = parseJwtClaims(tokens.access_token)
+    return claims ? extractAccountIdFromClaims(claims) : undefined
+  }
+  return undefined
+}
+
+// The Codex backend serves its own tiers ("priority" for Fast) and rejects the
+// platform-only "auto" that ProviderTransform sets for every OpenAI model.
+export function stripServiceTier(body: BodyInit | null | undefined): BodyInit | null | undefined {
+  if (typeof body !== "string") return body
+  try {
+    const parsed = JSON.parse(body)
+    if (!parsed || typeof parsed !== "object" || parsed.service_tier !== "auto") return body
+    delete parsed.service_tier
+    return JSON.stringify(parsed)
+  } catch {
+    return body
+  }
+}
+
+function buildAuthorizeUrl(redirectUri: string, pkce: PkceCodes, state: string): string {
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: CLIENT_ID,
+    redirect_uri: redirectUri,
+    scope: "openid profile email offline_access",
+    code_challenge: pkce.challenge,
+    code_challenge_method: "S256",
+    id_token_add_organizations: "true",
+    codex_cli_simplified_flow: "true",
+    state,
+    originator: "mergen",
+  })
+  return `${ISSUER}/oauth/authorize?${params.toString()}`
+}
+
+interface TokenResponse {
+  id_token: string
+  access_token: string
+  refresh_token: string
+  expires_in?: number
+}
+
+async function exchangeCodeForTokens(code: string, redirectUri: string, pkce: PkceCodes): Promise<TokenResponse> {
+  const response = await fetch(`${ISSUER}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+      client_id: CLIENT_ID,
+      code_verifier: pkce.verifier,
+    }).toString(),
+  })
+  if (!response.ok) {
+    throw new Error(`Token exchange failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+async function refreshAccessToken(refreshToken: string): Promise<TokenResponse> {
+  const response = await fetch(`${ISSUER}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: CLIENT_ID,
+    }).toString(),
+  })
+  if (!response.ok) {
+    throw new Error(`Token refresh failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+const HTML_SUCCESS = `<!doctype html>
+<html>
+  <head>
+    <title>Mergen - Codex Authorization Successful</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background: #131010;
+        color: #f1ecec;
+      }
+      .container {
+        text-align: center;
+        padding: 2rem;
+      }
+      h1 {
+        color: #f1ecec;
+        margin-bottom: 1rem;
+      }
+      p {
+        color: #b7b1b1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Authorization Successful</h1>
+      <p>You can close this window and return to Mergen.</p>
+    </div>
+    <script>
+      setTimeout(() => window.close(), 2000)
+    </script>
+  </body>
+</html>`
+
+const HTML_ERROR = (error: string) => `<!doctype html>
+<html>
+  <head>
+    <title>Mergen - Codex Authorization Failed</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background: #131010;
+        color: #f1ecec;
+      }
+      .container {
+        text-align: center;
+        padding: 2rem;
+      }
+      h1 {
+        color: #fc533a;
+        margin-bottom: 1rem;
+      }
+      p {
+        color: #b7b1b1;
+      }
+      .error {
+        color: #ff917b;
+        font-family: monospace;
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #3c140d;
+        border-radius: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Authorization Failed</h1>
+      <p>An error occurred during authorization.</p>
+      <div class="error">${error}</div>
+    </div>
+  </body>
+</html>`
+
+interface PendingOAuth {
+  pkce: PkceCodes
+  state: string
+  resolve: (tokens: TokenResponse) => void
+  reject: (error: Error) => void
+}
+
+let oauthServer: ReturnType<typeof Bun.serve> | undefined
+let pendingOAuth: PendingOAuth | undefined
+
+async function startOAuthServer(): Promise<{ port: number; redirectUri: string }> {
+  if (oauthServer) {
+    return { port: OAUTH_PORT, redirectUri: `http://localhost:${OAUTH_PORT}/auth/callback` }
+  }
+
+  oauthServer = Bun.serve({
+    port: OAUTH_PORT,
+    fetch(req) {
+      const url = new URL(req.url)
+
+      if (url.pathname === "/auth/callback") {
+        const code = url.searchParams.get("code")
+        const state = url.searchParams.get("state")
+        const error = url.searchParams.get("error")
+        const errorDescription = url.searchParams.get("error_description")
+
+        if (error) {
+          const errorMsg = errorDescription || error
+          pendingOAuth?.reject(new Error(errorMsg))
+          pendingOAuth = undefined
+          return new Response(HTML_ERROR(errorMsg), {
+            headers: { "Content-Type": "text/html" },
+          })
+        }
+
+        if (!code) {
+          const errorMsg = "Missing authorization code"
+          pendingOAuth?.reject(new Error(errorMsg))
+          pendingOAuth = undefined
+          return new Response(HTML_ERROR(errorMsg), {
+            status: 400,
+            headers: { "Content-Type": "text/html" },
+          })
+        }
+
+        if (!pendingOAuth || state !== pendingOAuth.state) {
+          const errorMsg = "Invalid state - potential CSRF attack"
+          pendingOAuth?.reject(new Error(errorMsg))
+          pendingOAuth = undefined
+          return new Response(HTML_ERROR(errorMsg), {
+            status: 400,
+            headers: { "Content-Type": "text/html" },
+          })
+        }
+
+        const current = pendingOAuth
+        pendingOAuth = undefined
+
+        exchangeCodeForTokens(code, `http://localhost:${OAUTH_PORT}/auth/callback`, current.pkce)
+          .then((tokens) => current.resolve(tokens))
+          .catch((err) => current.reject(err))
+
+        return new Response(HTML_SUCCESS, {
+          headers: { "Content-Type": "text/html" },
+        })
+      }
+
+      if (url.pathname === "/cancel") {
+        pendingOAuth?.reject(new Error("Login cancelled"))
+        pendingOAuth = undefined
+        return new Response("Login cancelled", { status: 200 })
+      }
+
+      return new Response("Not found", { status: 404 })
+    },
+  })
+
+  log.info("codex oauth server started", { port: OAUTH_PORT })
+  return { port: OAUTH_PORT, redirectUri: `http://localhost:${OAUTH_PORT}/auth/callback` }
+}
+
+function stopOAuthServer() {
+  if (oauthServer) {
+    oauthServer.stop()
+    oauthServer = undefined
+    log.info("codex oauth server stopped")
+  }
+}
+
+function waitForOAuthCallback(pkce: PkceCodes, state: string): Promise<TokenResponse> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => {
+        if (pendingOAuth) {
+          pendingOAuth = undefined
+          reject(new Error("OAuth callback timeout - authorization took too long"))
+        }
+      },
+      5 * 60 * 1000,
+    ) // 5 minute timeout
+
+    pendingOAuth = {
+      pkce,
+      state,
+      resolve: (tokens) => {
+        clearTimeout(timeout)
+        resolve(tokens)
+      },
+      reject: (error) => {
+        clearTimeout(timeout)
+        reject(error)
+      },
+    }
+  })
+}
+
+export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
+  return {
+    auth: {
+      provider: "openai",
+      async loader(getAuth, provider) {
+        const auth = await getAuth()
+        if (auth.type !== "oauth") return {}
+
+        // Filter models to only those available via the Codex (ChatGPT subscription) endpoint.
+        // Uses a version-based regex so new models (e.g. gpt-5.7, gpt-6.x) are automatically
+        // included without needing a code change. Explicit allow/disallow sets handle edge cases.
+        const allowedModels = new Set([
+          "gpt-5.6",
+          "gpt-5.6-sol",
+          "gpt-5.6-terra",
+          "gpt-5.6-luna",
+          "gpt-5.5",
+          "gpt-5.4",
+          "gpt-5.4-mini",
+          "gpt-5.3-codex-spark",
+        ])
+        const disallowedModels = new Set([
+          "gpt-5.5-pro",
+          "gpt-5.3-codex",
+          "gpt-5.2",
+          "gpt-5.2-codex",
+          "gpt-5.1-codex-max",
+          "gpt-5.1-codex-mini",
+          "gpt-5.1-codex",
+        ])
+        for (const modelId of Object.keys(provider.models)) {
+          if (allowedModels.has(modelId)) continue
+          if (disallowedModels.has(modelId)) {
+            delete provider.models[modelId]
+            continue
+          }
+          const match = modelId.match(/^gpt-(\d+\.\d+)/)
+          if (match && parseFloat(match[1]) > 5.4) continue
+          delete provider.models[modelId]
+        }
+
+        const missing = [
+          { id: "gpt-5.6", name: "GPT-5.6", release_date: "2026-07-15" },
+          { id: "gpt-5.6-sol", name: "GPT-5.6 Sol", release_date: "2026-07-15" },
+          { id: "gpt-5.6-terra", name: "GPT-5.6 Terra", release_date: "2026-07-15" },
+          { id: "gpt-5.6-luna", name: "GPT-5.6 Luna", release_date: "2026-07-15" },
+          { id: "gpt-5.5", name: "GPT-5.5", release_date: "2026-05-15" },
+          { id: "gpt-5.4", name: "GPT-5.4", release_date: "2026-03-05" },
+          { id: "gpt-5.4-mini", name: "GPT-5.4 Mini", release_date: "2026-03-16" },
+          { id: "gpt-5.3-codex-spark", name: "GPT-5.3 Codex Spark", release_date: "2026-02-25" },
+        ].filter((model) => !provider.models[model.id])
+
+        for (const missingModel of missing) {
+          const model = {
+            id: missingModel.id,
+            providerID: "openai",
+            api: {
+              id: missingModel.id,
+              url: "https://chatgpt.com/backend-api/codex",
+              npm: "@ai-sdk/openai",
+            },
+            name: missingModel.name,
+            capabilities: {
+              temperature: false,
+              reasoning: true,
+              attachment: true,
+              toolcall: true,
+              input: { text: true, audio: false, image: true, video: false, pdf: false },
+              output: { text: true, audio: false, image: false, video: false, pdf: false },
+              interleaved: false,
+            },
+            cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+            limit: { context: 400_000, input: 272_000, output: 128_000 },
+            status: "active" as const,
+            options: {},
+            headers: {},
+            release_date: missingModel.release_date,
+            variants: {} as Record<string, Record<string, any>>,
+            family: missingModel.id.includes("codex") ? "gpt-codex" : "gpt",
+          }
+          model.variants = ProviderTransform.variants(model)
+          provider.models[missingModel.id] = model
+        }
+
+        // Zero out costs for Codex (included with ChatGPT subscription)
+        for (const model of Object.values(provider.models)) {
+          model.cost = {
+            input: 0,
+            output: 0,
+            cache: { read: 0, write: 0 },
+          }
+        }
+
+        return {
+          apiKey: OAUTH_DUMMY_KEY,
+          async fetch(requestInput: RequestInfo | URL, init?: RequestInit) {
+            // Remove dummy API key authorization header
+            if (init?.headers) {
+              if (init.headers instanceof Headers) {
+                init.headers.delete("authorization")
+                init.headers.delete("Authorization")
+              } else if (Array.isArray(init.headers)) {
+                init.headers = init.headers.filter(([key]) => key.toLowerCase() !== "authorization")
+              } else {
+                delete init.headers["authorization"]
+                delete init.headers["Authorization"]
+              }
+            }
+
+            const currentAuth = await getAuth()
+            if (currentAuth.type !== "oauth") return fetch(requestInput, init)
+
+            // Cast to include accountId field
+            const authWithAccount = currentAuth as typeof currentAuth & { accountId?: string }
+
+            // Check if token needs refresh
+            if (!currentAuth.access || currentAuth.expires < Date.now()) {
+              log.info("refreshing codex access token")
+              const tokens = await refreshAccessToken(currentAuth.refresh)
+              const newAccountId = extractAccountId(tokens) || authWithAccount.accountId
+              await input.client.auth.set({
+                path: { id: "openai" },
+                body: {
+                  type: "oauth",
+                  refresh: tokens.refresh_token,
+                  access: tokens.access_token,
+                  expires: Date.now() + (tokens.expires_in ?? 3600) * 1000,
+                  ...(newAccountId && { accountId: newAccountId }),
+                },
+              })
+              currentAuth.access = tokens.access_token
+              authWithAccount.accountId = newAccountId
+            }
+
+            // Build headers
+            const headers = new Headers()
+            if (init?.headers) {
+              if (init.headers instanceof Headers) {
+                init.headers.forEach((value, key) => headers.set(key, value))
+              } else if (Array.isArray(init.headers)) {
+                for (const [key, value] of init.headers) {
+                  if (value !== undefined) headers.set(key, String(value))
+                }
+              } else {
+                for (const [key, value] of Object.entries(init.headers)) {
+                  if (value !== undefined) headers.set(key, String(value))
+                }
+              }
+            }
+
+            // Set authorization header with access token
+            headers.set("authorization", `Bearer ${currentAuth.access}`)
+
+            // Set ChatGPT-Account-Id header for organization subscriptions
+            if (authWithAccount.accountId) {
+              headers.set("ChatGPT-Account-Id", authWithAccount.accountId)
+            }
+
+            // Rewrite URL to Codex endpoint
+            const parsed =
+              requestInput instanceof URL
+                ? requestInput
+                : new URL(typeof requestInput === "string" ? requestInput : requestInput.url)
+            const url =
+              parsed.pathname.includes("/v1/responses") || parsed.pathname.includes("/chat/completions")
+                ? new URL(CODEX_API_ENDPOINT)
+                : parsed
+
+            // The Codex backend only knows its own tiers and rejects the platform-only
+            // values ProviderTransform sets, e.g. "Unsupported service_tier: auto".
+            const body = url === parsed ? init?.body : stripServiceTier(init?.body)
+
+            return fetch(url, {
+              ...init,
+              headers,
+              body,
+            })
+          },
+        }
+      },
+      methods: [
+        {
+          label: "ChatGPT Pro/Plus (browser)",
+          type: "oauth",
+          authorize: async () => {
+            const { redirectUri } = await startOAuthServer()
+            const pkce = await generatePKCE()
+            const state = generateState()
+            const authUrl = buildAuthorizeUrl(redirectUri, pkce, state)
+
+            const callbackPromise = waitForOAuthCallback(pkce, state)
+
+            return {
+              url: authUrl,
+              instructions: "Complete authorization in your browser. This window will close automatically.",
+              method: "auto" as const,
+              callback: async () => {
+                const tokens = await callbackPromise
+                stopOAuthServer()
+                const accountId = extractAccountId(tokens)
+                return {
+                  type: "success" as const,
+                  refresh: tokens.refresh_token,
+                  access: tokens.access_token,
+                  expires: Date.now() + (tokens.expires_in ?? 3600) * 1000,
+                  accountId,
+                }
+              },
+            }
+          },
+        },
+        {
+          label: "ChatGPT Pro/Plus (headless)",
+          type: "oauth",
+          authorize: async () => {
+            const deviceResponse = await fetch(`${ISSUER}/api/accounts/deviceauth/usercode`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "User-Agent": `mergen/${Installation.VERSION}`,
+              },
+              body: JSON.stringify({ client_id: CLIENT_ID }),
+            })
+
+            if (!deviceResponse.ok) throw new Error("Failed to initiate device authorization")
+
+            const deviceData = (await deviceResponse.json()) as {
+              device_auth_id: string
+              user_code: string
+              interval: string
+            }
+            const interval = Math.max(parseInt(deviceData.interval) || 5, 1) * 1000
+
+            return {
+              url: `${ISSUER}/codex/device`,
+              instructions: `Enter code: ${deviceData.user_code}`,
+              method: "auto" as const,
+              async callback() {
+                while (true) {
+                  const response = await fetch(`${ISSUER}/api/accounts/deviceauth/token`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "User-Agent": `mergen/${Installation.VERSION}`,
+                    },
+                    body: JSON.stringify({
+                      device_auth_id: deviceData.device_auth_id,
+                      user_code: deviceData.user_code,
+                    }),
+                  })
+
+                  if (response.ok) {
+                    const data = (await response.json()) as {
+                      authorization_code: string
+                      code_verifier: string
+                    }
+
+                    const tokenResponse = await fetch(`${ISSUER}/oauth/token`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                      body: new URLSearchParams({
+                        grant_type: "authorization_code",
+                        code: data.authorization_code,
+                        redirect_uri: `${ISSUER}/deviceauth/callback`,
+                        client_id: CLIENT_ID,
+                        code_verifier: data.code_verifier,
+                      }).toString(),
+                    })
+
+                    if (!tokenResponse.ok) {
+                      throw new Error(`Token exchange failed: ${tokenResponse.status}`)
+                    }
+
+                    const tokens: TokenResponse = await tokenResponse.json()
+
+                    return {
+                      type: "success" as const,
+                      refresh: tokens.refresh_token,
+                      access: tokens.access_token,
+                      expires: Date.now() + (tokens.expires_in ?? 3600) * 1000,
+                      accountId: extractAccountId(tokens),
+                    }
+                  }
+
+                  if (response.status !== 403 && response.status !== 404) {
+                    return { type: "failed" as const }
+                  }
+
+                  await Bun.sleep(interval + OAUTH_POLLING_SAFETY_MARGIN_MS)
+                }
+              },
+            }
+          },
+        },
+        {
+          label: "Manually enter API Key",
+          type: "api",
+        },
+      ],
+    },
+    "chat.headers": async (input, output) => {
+      if (input.model.providerID !== "openai") return
+      output.headers.originator = "mergen"
+      output.headers["User-Agent"] =
+        `mergen/${Installation.VERSION} (${os.platform()} ${os.release()}; ${os.arch()})`
+      output.headers.session_id = input.sessionID
+    },
+  }
+}

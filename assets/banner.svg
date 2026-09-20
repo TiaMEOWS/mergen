@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0e14"/>
+      <stop offset="0.55" stop-color="#10141d"/>
+      <stop offset="1" stop-color="#1d2432"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4c877"/>
+      <stop offset="0.5" stop-color="#e8b14b"/>
+      <stop offset="1" stop-color="#c9742e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#e8b14b" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#e8b14b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="320" fill="url(#bg)"/>
+  <circle cx="230" cy="160" r="150" fill="url(#glow)"/>
+
+  <!-- bow: arc drawn as a crescent path -->
+  <path d="M 255 55 A 105 105 0 1 0 255 265 A 130 130 0 0 1 255 55 Z"
+        fill="url(#gold)" opacity="0.95"/>
+  <!-- bowstring -->
+  <line x1="255" y1="55" x2="255" y2="265" stroke="#0b0e14" stroke-width="3"/>
+  <!-- arrow shaft through the bow -->
+  <line x1="120" y1="160" x2="330" y2="160" stroke="url(#gold)" stroke-width="7"/>
+  <!-- arrowhead -->
+  <path d="M 330 160 L 302 146 L 312 160 L 302 174 Z" fill="url(#gold)"/>
+  <!-- fletching -->
+  <path d="M 120 160 L 138 148 L 150 160 L 138 172 Z" fill="#5fa8a0"/>
+  <path d="M 134 160 L 152 148 L 164 160 L 152 172 Z" fill="#6e8fb2"/>
+
+  <text x="420" y="155" font-family="Segoe UI, Arial, sans-serif" font-size="96"
+        font-weight="800" letter-spacing="18" fill="#e8e3d5">MERGEN</text>
+  <text x="424" y="205" font-family="Segoe UI, Arial, sans-serif" font-size="26"
+        letter-spacing="6" fill="#e8b14b">AI-POWERED OFFENSIVE SECURITY HARNESS</text>
+  <text x="424" y="248" font-family="Segoe UI, Arial, sans-serif" font-size="17"
+        letter-spacing="2" fill="#8a93a8">the divine archer who never misses — 40+ attack disciplines, agent-driven</text>
+
+  <!-- corner accents -->
+  <path d="M 0 0 h 90 M 0 0 v 90" stroke="#e8b14b" stroke-width="3" opacity="0.7"/>
+  <path d="M 1200 320 h -90 M 1200 320 v -90" stroke="#e8b14b" stroke-width="3" opacity="0.7"/>
+</svg>

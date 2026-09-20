@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/TiaMEOWS/mergen/main/schema/theme.json",
+  "title": "Mergen theme",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "defs": { "type": "object", "additionalProperties": { "type": "string" } },
+    "theme": { "type": "object", "additionalProperties": true }
+  }
+}

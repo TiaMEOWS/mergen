@@ -1,0 +1,41 @@
+.DS_Store
+node_modules
+.worktrees
+.sst
+.env
+.idea
+.vscode
+.codex
+.claude/
+.mergen/*
+!.mergen/skill/
+__MACOSX/
+*~
+playground
+tmp
+dist
+ts-dist
+.turbo
+**/.serena
+.serena/
+/result
+refs
+Session.vim
+mergen.json
+a.out
+target
+.scripts
+.direnv/
+
+# Local dev files
+test-cases/
+opencode-dev
+logs/
+*.bun-build
+.skill-signing-key
+
+# Local throwaway test/eval harness (not committed)
+packages/mergen/test/proxy-eval/
+
+# Exported session transcripts and reports
+session-*.md

@@ -1,0 +1,47 @@
+name: test
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: unit (linux)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Configure git identity
+        run: |
+          git config --global user.email "bot@mergen.dev"
+          git config --global user.name "mergen"
+
+      - name: Run unit tests
+        run: bun turbo test
+
+  required:
+    name: test (linux)
+    runs-on: ubuntu-24.04
+    needs:
+      - unit
+    if: always()
+    steps:
+      - name: Verify upstream test jobs passed
+        run: |
+          echo "unit=${{ needs.unit.result }}"
+          test "${{ needs.unit.result }}" = "success"

@@ -1,0 +1,36 @@
+id = "mergen"
+name = "Mergen"
+description = "The open source coding agent."
+version = "1.1.16"
+schema_version = 1
+authors = ["Anomaly"]
+repository = "https://github.com/TiaMEOWS/mergen"
+
+[agent_servers.mergen]
+name = "Mergen"
+icon = "./icons/mergen.svg"
+
+[agent_servers.mergen.targets.darwin-aarch64]
+archive = "https://github.com/TiaMEOWS/mergen/releases/download/v1.1.16/mergen-darwin-arm64.zip"
+cmd = "./mergen"
+args = ["acp"]
+
+[agent_servers.mergen.targets.darwin-x86_64]
+archive = "https://github.com/TiaMEOWS/mergen/releases/download/v1.1.16/mergen-darwin-x64.zip"
+cmd = "./mergen"
+args = ["acp"]
+
+[agent_servers.mergen.targets.linux-aarch64]
+archive = "https://github.com/TiaMEOWS/mergen/releases/download/v1.1.16/mergen-linux-arm64.tar.gz"
+cmd = "./mergen"
+args = ["acp"]
+
+[agent_servers.mergen.targets.linux-x86_64]
+archive = "https://github.com/TiaMEOWS/mergen/releases/download/v1.1.16/mergen-linux-x64.tar.gz"
+cmd = "./mergen"
+args = ["acp"]
+
+[agent_servers.mergen.targets.windows-x86_64]
+archive = "https://github.com/TiaMEOWS/mergen/releases/download/v1.1.16/mergen-windows-x64.zip"
+cmd = "./mergen.exe"
+args = ["acp"]

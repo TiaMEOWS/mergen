@@ -1,0 +1,19 @@
+# Mergen Code Owners
+
+# Core CLI & agents
+packages/mergen/            @badchars
+packages/mergen/src/agent/  @badchars
+
+# Security knowledge base & skills
+knowledge/                       @badchars
+.mergen/skill/              @badchars
+
+# Web & Desktop
+packages/app/                    @badchars
+packages/desktop/                @badchars
+
+# MCP Kali
+packages/mcp-kali/               @badchars
+
+# Infrastructure
+.github/                         @badchars

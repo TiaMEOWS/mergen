@@ -1,0 +1,15 @@
+research
+dist
+gen
+app.log
+src/provider/models-snapshot.ts
+cookies*.txt
+headers.txt
+jq
+postman/
+TODO.md
+update_review_payload.json
+
+# local mergen state + throwaway DAST benchmark harness/apps/results
+.mergen/
+test/benchmark/

@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/TiaMEOWS/mergen/main/schema/config.json",
+  "title": "Mergen configuration",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "provider": { "type": "object", "additionalProperties": true },
+    "mcp": { "type": "object", "additionalProperties": true },
+    "theme": { "type": "string" },
+    "model": { "type": "string" }
+  }
+}

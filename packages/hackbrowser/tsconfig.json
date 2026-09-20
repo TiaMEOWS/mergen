@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@tsconfig/bun/tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    // Mirror mergen's tsconfig settings — required because we import mergen source directly
+    "types": [],
+    "noUncheckedIndexedAccess": false,
+    "paths": {
+      "@/*": ["../mergen/src/*"],
+      "@tui/*": ["../mergen/src/cli/cmd/tui/*"]
+    }
+  },
+  "exclude": ["test-cases"]
+}

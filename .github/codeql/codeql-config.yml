@@ -1,0 +1,13 @@
+name: "Mergen CodeQL Config"
+
+# Post-exploit tooling directories contain offensive security payloads that
+# intentionally handle secrets, credentials, and perform actions that static
+# analyzers flag as vulnerabilities. These are features, not bugs.
+paths-ignore:
+  - packages/mergen/data/awshook
+  - packages/mergen/data/azurehook
+  - packages/mergen/data/cipipe
+  - packages/mergen/data/ebpf
+  - packages/mergen/data/kubehook
+  - packages/mergen/data/machook
+  - packages/mergen/data/winhook

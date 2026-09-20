@@ -1,0 +1,287 @@
+import { QuestionTool } from "./question"
+import { BashTool } from "./bash"
+import { EditTool } from "./edit"
+import { GlobTool } from "./glob"
+import { GrepTool } from "./grep"
+import { BatchTool } from "./batch"
+import { ReadTool } from "./read"
+import { TaskTool } from "./task"
+import { TodoWriteTool, TodoReadTool } from "./todo"
+import { ReportVulnerabilityTool } from "./vulnerability"
+import { TriageVulnerabilityTool } from "./triage-vulnerability"
+import { WebFetchTool } from "./webfetch"
+import { WriteTool } from "./write"
+import { InvalidTool } from "./invalid"
+import { SkillTool } from "./skill"
+import type { Agent } from "../agent/agent"
+import { Tool } from "./tool"
+import { Instance } from "../project/instance"
+import { Config } from "../config/config"
+import path from "path"
+import { type ToolContext as PluginToolContext, type ToolDefinition } from "@mergen-io/plugin"
+import z from "zod"
+import { Plugin } from "../plugin"
+import { WebSearchTool } from "./websearch"
+import { CodeSearchTool } from "./codesearch"
+import { Flag } from "@/flag/flag"
+import { Log } from "@/util/log"
+import { LspTool } from "./lsp"
+import { Truncate } from "./truncation"
+import { ApplyPatchTool } from "./apply_patch"
+
+import { MemorySearchTool, MemoryWriteTool, MemoryReadTool, MemoryContextTool } from "./memory"
+import { ToolSearchTool, LoadToolsTool, UnloadToolsTool, ListLoadedToolsTool } from "./tool-search"
+import { LazyToolRegistry } from "./lazy-registry"
+import { WebWriteRoleTool } from "./web-write-role"
+import { WebWriteObjectTool } from "./web-write-object"
+import { WebWriteObjectValueTool } from "./web-write-object-value"
+import { WebWriteFunctionTool } from "./web-write-function"
+import { WebGetSessionContextTool } from "./web-get-session-context"
+import { WebGetDetailTool } from "./web-get-detail"
+import { WebGetRequestDetailTool } from "./web-get-request-detail"
+import { InjectProbeTool } from "./inject-probe"
+import { HttpReplayTool, HttpReplayRawTool } from "./http-replay"
+import { WebGetVulnerabilitiesTool } from "./web-get-vulnerabilities"
+import { WebGetVulnDetailTool } from "./web-get-vuln-detail"
+import { WebUpdateCredentialClaimsTool } from "./web-update-credential-claims"
+import { WebUpdateCredentialTool } from "./web-update-credential"
+import { CsrfExtractTool } from "./csrf-extract"
+import { HackbrowserTool } from "./hackbrowser"
+import { AddIntelTool } from "./intel"
+import { UpdateVrtCheckTool } from "./vrt-check"
+import { RecordCoverageNoteTool, GetCoverageNotesTool } from "./coverage-note"
+import { ScopeCheckTool } from "./scope-check"
+import { EnsureToolsTool } from "./ensure-tools"
+import { MethodologyStatusTool } from "./methodology-status"
+import { AttackScriptTool } from "./attack-script"
+import { GenerateReportTool } from "./generate-report"
+import { EbpfTool } from "./ebpf"
+import { WinhookTool } from "./winhook"
+import { MachookTool } from "./machook"
+import { LinuxhookTool } from "./linuxhook"
+import { AwshookTool } from "./awshook"
+import { AzurehookTool } from "./azurehook"
+import { KubehookTool } from "./kubehook"
+import { GcphookTool } from "./gcphook"
+import { ContainerhookTool } from "./containerhook"
+import { IachookTool } from "./iachook"
+import { LlmhookTool } from "./llmhook"
+import { CloudAuditTool } from "./cloud-audit"
+import { K8sAuditTool } from "./k8s-audit"
+import { CiAuditTool } from "./ci-audit"
+import { CipipeTool } from "./cipipe"
+
+export namespace ToolRegistry {
+  const log = Log.create({ service: "tool.registry" })
+
+  export const state = Instance.state(async () => {
+    const custom = [] as Tool.Info[]
+    const glob = new Bun.Glob("{tool,tools}/*.{js,ts}")
+
+    const matches = await Config.directories().then((dirs) =>
+      dirs.flatMap((dir) => [...glob.scanSync({ cwd: dir, absolute: true, followSymlinks: true, dot: true })]),
+    )
+    if (matches.length) await Config.waitForDependencies()
+    for (const match of matches) {
+      const namespace = path.basename(match, path.extname(match))
+      try {
+        const mod = await import(match)
+        for (const [id, def] of Object.entries<ToolDefinition>(mod)) {
+          custom.push(fromPlugin(id === "default" ? namespace : `${namespace}_${id}`, def))
+        }
+      } catch (e) {
+        log.info("skipping custom tool", { path: match, error: String(e) })
+      }
+    }
+
+    const plugins = await Plugin.list()
+    for (const plugin of plugins) {
+      for (const [id, def] of Object.entries(plugin.tool ?? {})) {
+        custom.push(fromPlugin(id, def))
+      }
+    }
+
+    return { custom }
+  })
+
+  function fromPlugin(id: string, def: ToolDefinition): Tool.Info {
+    return {
+      id,
+      init: async (initCtx) => ({
+        parameters: z.object(def.args ?? {}),
+        description: def.description,
+        execute: async (args, ctx) => {
+          const pluginCtx = {
+            ...ctx,
+            directory: Instance.directory,
+            worktree: Instance.worktree,
+          } as unknown as PluginToolContext
+          const result = await def.execute(args as any, pluginCtx)
+          const out = await Truncate.output(result, {}, initCtx?.agent)
+          return {
+            title: "",
+            output: out.truncated ? out.content : result,
+            metadata: { truncated: out.truncated, outputPath: out.truncated ? out.outputPath : undefined },
+          }
+        },
+      }),
+    }
+  }
+
+  export async function register(tool: Tool.Info) {
+    const { custom } = await state()
+    const idx = custom.findIndex((t) => t.id === tool.id)
+    if (idx >= 0) {
+      custom.splice(idx, 1, tool)
+      return
+    }
+    custom.push(tool)
+  }
+
+  async function all(): Promise<Tool.Info[]> {
+    const custom = await state().then((x) => x.custom)
+    const config = await Config.get()
+
+    return [
+      InvalidTool,
+      ...(["app", "cli", "desktop"].includes(Flag.MERGEN_CLIENT) ? [QuestionTool] : []),
+      BashTool,
+      ReadTool,
+      GlobTool,
+      GrepTool,
+      EditTool,
+      WriteTool,
+      TaskTool,
+      WebFetchTool,
+      TodoWriteTool,
+      ReportVulnerabilityTool,
+      TriageVulnerabilityTool,
+      // TodoReadTool,
+      WebSearchTool,
+      CodeSearchTool,
+      SkillTool,
+      ApplyPatchTool,
+      ...(Flag.MERGEN_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
+      ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
+      MemorySearchTool,
+      MemoryWriteTool,
+      MemoryReadTool,
+      MemoryContextTool,
+      ToolSearchTool,
+      LoadToolsTool,
+      UnloadToolsTool,
+      ListLoadedToolsTool,
+      // Web Proxy Agent Tools
+      WebWriteRoleTool,
+      WebWriteObjectTool,
+      WebWriteObjectValueTool,
+      WebWriteFunctionTool,
+      WebGetSessionContextTool,
+      WebGetDetailTool,
+      WebGetRequestDetailTool,
+      InjectProbeTool,
+      HttpReplayTool,
+      HttpReplayRawTool,
+      WebGetVulnerabilitiesTool,
+      WebGetVulnDetailTool,
+      WebUpdateCredentialClaimsTool,
+      WebUpdateCredentialTool,
+      CsrfExtractTool,
+      // Hackbrowser — autonomous crawler that produces captures the
+      // proxy-analyzer ingests. Upstream of the rest of the web pipeline.
+      HackbrowserTool,
+      // Methodology Engine Tools — intelligence, coverage, chain detection
+      AddIntelTool,
+      UpdateVrtCheckTool,
+      RecordCoverageNoteTool,
+      GetCoverageNotesTool,
+      ScopeCheckTool,
+      EnsureToolsTool,
+      MethodologyStatusTool,
+      AttackScriptTool,
+      GenerateReportTool,
+      EbpfTool,
+      WinhookTool,
+      MachookTool,
+      LinuxhookTool,
+      AwshookTool,
+      AzurehookTool,
+      KubehookTool,
+      GcphookTool,
+      ContainerhookTool,
+      IachookTool,
+      LlmhookTool,
+      CloudAuditTool,
+      K8sAuditTool,
+      CiAuditTool,
+      CipipeTool,
+      ...custom,
+    ]
+  }
+
+  /**
+   * Initialize lazy tool registry for MCP tools
+   */
+  export async function initLazyRegistry(): Promise<void> {
+    await LazyToolRegistry.init()
+  }
+
+  /**
+   * Get currently loaded MCP tools from the lazy registry
+   */
+  export function getLoadedMCPTools(): Record<string, any> {
+    const loaded = LazyToolRegistry.getLoaded()
+    const tools: Record<string, any> = {}
+    for (const t of loaded) {
+      tools[t.id] = t.tool
+    }
+    return tools
+  }
+
+  export async function ids() {
+    return all().then((x) => x.map((t) => t.id))
+  }
+
+  export async function tools(
+    model: {
+      providerID: string
+      modelID: string
+    },
+    agent?: Agent.Info,
+  ) {
+    const tools = await all()
+    const result = await Promise.all(
+      tools
+        .filter((t) => {
+          // Enable websearch/codesearch for zen users OR via enable flag
+          if (t.id === "codesearch" || t.id === "websearch") {
+            return model.providerID === "mergen" || Flag.MERGEN_ENABLE_EXA
+          }
+
+          // use apply tool in same format as codex
+          const usePatch =
+            model.modelID.includes("gpt-") && !model.modelID.includes("oss") && !model.modelID.includes("gpt-4")
+          if (t.id === "apply_patch") return usePatch
+          if (t.id === "edit" || t.id === "write") return !usePatch
+
+          return true
+        })
+        .map(async (t) => {
+          using _ = log.time(t.id)
+          const tool = await t.init({ agent })
+          const output = {
+            description: tool.description,
+            parameters: tool.parameters,
+          }
+          await Plugin.trigger("tool.definition", { toolID: t.id }, output)
+          return {
+            id: t.id,
+            ...tool,
+            description: output.description,
+            parameters: output.parameters,
+          }
+        }),
+    )
+    return result
+  }
+}

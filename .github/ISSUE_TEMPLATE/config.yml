@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discord Community
+    url: https://discord.gg/snunAaHf6U
+    about: For quick questions, real-time discussion, and community support
+  - name: Documentation
+    url: https://mergen.dev
+    about: Read the docs, guides, and API reference
+  - name: Security Disclosure
+    url: https://github.com/TiaMEOWS/mergen/security/advisories/new
+    about: Report a security vulnerability (private)
