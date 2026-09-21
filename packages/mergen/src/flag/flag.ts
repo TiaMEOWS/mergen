@@ -48,6 +48,13 @@ export namespace Flag {
   export const MERGEN_DISABLE_SCOPE_FIREWALL = truthy("MERGEN_DISABLE_SCOPE_FIREWALL")
   export const MERGEN_SCOPE_MODE: "block" | "warn" = process.env["MERGEN_SCOPE_MODE"] === "warn" ? "warn" : "block"
   export const MERGEN_SCOPE_FILE = process.env["MERGEN_SCOPE_FILE"]
+  /** "docker" runs every bash tool command inside a throwaway container (default: off). */
+  export const MERGEN_SANDBOX = process.env["MERGEN_SANDBOX"]
+  export const MERGEN_SANDBOX_IMAGE = process.env["MERGEN_SANDBOX_IMAGE"]
+  /** Default scan depth for campaign mode: quick | standard (default) | deep. */
+  export const MERGEN_SCAN_MODE = process.env["MERGEN_SCAN_MODE"]
+  /** bridge (default) | none | host -- container network for sandboxed commands. */
+  export const MERGEN_SANDBOX_NETWORK = process.env["MERGEN_SANDBOX_NETWORK"]
   export const MERGEN_ENABLE_EXA =
     truthy("MERGEN_ENABLE_EXA") || MERGEN_EXPERIMENTAL || truthy("MERGEN_EXPERIMENTAL_EXA")
   export const MERGEN_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS = number(

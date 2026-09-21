@@ -16,6 +16,7 @@ import { Shell } from "@/shell/shell"
 
 import { BashArity } from "@/permission/arity"
 import { Truncate } from "./truncation"
+import { Sandbox } from "./sandbox"
 import { Plugin } from "@/plugin"
 
 const MAX_METADATA_LENGTH = 30_000
@@ -181,8 +182,36 @@ export const BashTool = Tool.define("bash", async () => {
       }
 
       const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
-      const proc = spawn(params.command, {
-        shell,
+
+      // Sandbox: run the whole command inside a throwaway container. Fail-closed:
+      // MERGEN_SANDBOX=docker with no reachable daemon refuses rather than
+      // silently falling back to host execution. Host env is NOT forwarded into
+      // the container (it only reaches the docker client, which needs DOCKER_HOST etc.).
+      let sandboxName: string | undefined
+      let spawnCmd = params.command
+      let spawnArgs: string[] = []
+      let spawnShell: string | undefined = shell
+      if (Sandbox.mode() === "docker") {
+        if (!(await Sandbox.dockerAvailable())) {
+          throw new Error(
+            "MERGEN_SANDBOX=docker but no Docker daemon is reachable. Start Docker or unset MERGEN_SANDBOX -- refusing to run on the host.",
+          )
+        }
+        sandboxName = Sandbox.containerName()
+        spawnCmd = "docker"
+        spawnArgs = Sandbox.dockerArgs({
+          command: params.command,
+          workdir: cwd,
+          projectRoot: Instance.directory,
+          image: Sandbox.image(),
+          network: Sandbox.network(),
+          name: sandboxName,
+        })
+        spawnShell = undefined
+      }
+
+      const proc = spawn(spawnCmd, spawnArgs, {
+        shell: spawnShell,
         cwd,
         env: {
           ...process.env,
@@ -228,7 +257,11 @@ export const BashTool = Tool.define("bash", async () => {
       let aborted = false
       let exited = false
 
-      const kill = () => Shell.killTree(proc, { exited: () => exited })
+      const kill = () => {
+        // Killing the docker client can orphan the container -- remove it explicitly.
+        if (sandboxName) Sandbox.removeContainer(sandboxName)
+        return Shell.killTree(proc, { exited: () => exited })
+      }
 
       if (ctx.abort.aborted) {
         aborted = true
@@ -267,6 +300,10 @@ export const BashTool = Tool.define("bash", async () => {
       })
 
       const resultMetadata: string[] = []
+
+      if (sandboxName) {
+        resultMetadata.push(`sandbox: docker container ${sandboxName} (image ${Sandbox.image()}, network ${Sandbox.network()})`)
+      }
 
       if (timedOut) {
         resultMetadata.push(`bash tool terminated command after exceeding timeout ${timeout} ms`)
