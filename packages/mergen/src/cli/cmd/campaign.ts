@@ -3,6 +3,8 @@ import { cmd } from "./cmd"
 import { RunCommand } from "./run"
 import { UI } from "../ui"
 import { Campaign } from "../../scope/campaign"
+import { ScanMode } from "../../methodology/scan-mode"
+import { Flag } from "../../flag/flag"
 import type { Argv } from "yargs"
 
 // CAMPAIGN MODE -- fully autonomous, scope-bound engagement. One target, no human
@@ -10,12 +12,14 @@ import type { Argv } from "yargs"
 // Scope Firewall is the hard boundary. Scope discipline is never bypassed:
 // existing scope files are enforced as-is, new ones are derived from the target.
 
-function directive(target: string, scopePath: string): string {
+function directive(target: string, scopePath: string, mode: ScanMode.Mode): string {
   return [
     "CAMPAIGN MODE -- autonomous, authorized security engagement.",
     "",
     `PRIMARY TARGET: ${target}`,
     `SCOPE: hard-enforced by the Scope Firewall (${scopePath}). If a host is blocked, it is out of scope -- log it as an assumption and move on. NEVER attempt to bypass or weaken the firewall.`,
+    "",
+    ScanMode.directive(mode),
     "",
     "OPERATING RULES:",
     "1. No human is present and the question tool is disabled. Make reasonable assumptions, record them for the final report, and keep going.",
@@ -49,6 +53,11 @@ export const CampaignCommand = cmd({
         array: true,
         describe: "extra in-scope items (only used when a new scope file is created)",
       })
+      .option("mode", {
+        type: "string",
+        choices: [...ScanMode.MODES],
+        describe: "engagement depth: quick (high-signal sweep) | standard (full methodology) | deep (exhaustive audit). Env: MERGEN_SCAN_MODE",
+      })
       .option("model", { type: "string", alias: ["m"], describe: "model to use (provider/model)" })
       .option("agent", { type: "string", describe: "agent to run the campaign as" })
       .option("format", { type: "string", choices: ["default", "json"], default: "default" })
@@ -68,7 +77,10 @@ export const CampaignCommand = cmd({
       process.exit(1)
     }
 
-    UI.println(UI.Style.TEXT_SUCCESS_BOLD + ">> " + UI.Style.TEXT_NORMAL + `campaign target: ${args.target}`)
+    const mode = ScanMode.coerce(args.mode ?? Flag.MERGEN_SCAN_MODE)
+    UI.println(
+      UI.Style.TEXT_SUCCESS_BOLD + ">> " + UI.Style.TEXT_NORMAL + `campaign target: ${args.target} | mode: ${mode}`,
+    )
     if (prep.created) {
       UI.println(
         UI.Style.TEXT_WARNING_BOLD + "!  " +
@@ -84,7 +96,7 @@ export const CampaignCommand = cmd({
     // `campaign` has explicitly authorized the engagement.
     process.env.MERGEN_PERMISSION = JSON.stringify({ "*": "allow" })
 
-    const message = directive(args.target, prep.path)
+    const message = directive(args.target, prep.path, mode)
     await RunCommand.handler({
       _: [],
       "--": [],
