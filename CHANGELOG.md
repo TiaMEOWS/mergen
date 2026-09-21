@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.2.0] - 2026-09-21
+
+### Added
+- `mergen verify [path] [--target]`: fix-regression gate -- replays exported
+  PoC scripts and reports REPRODUCED / FIXED / ERROR per finding; exit 1 when
+  anything still reproduces (CI-ready)
+- Report export formats: `generate_report` gains `format: sarif|pdf` --
+  SARIF 2.1.0 (CWE-keyed rules, severity-mapped levels, confirmed findings
+  only) and a dependency-free PDF artifact
+- `mergen ingest <file>`: import HAR (browser devtools) or Burp Suite XML
+  captures into the session request table -- CDATA/base64 aware parsing,
+  structural dedup via key_hash, tier-1 path templating
+- Docker sandbox for the bash tool: `MERGEN_SANDBOX=docker` runs every command
+  in a throwaway hardened container (caps dropped, no-new-privileges,
+  pid/memory limits, fail-closed when the daemon is unreachable);
+  `MERGEN_SANDBOX_IMAGE`, `MERGEN_SANDBOX_NETWORK=bridge|none|host`
+- Scan depth modes for campaigns: `--mode quick|standard|deep` (or
+  `MERGEN_SCAN_MODE`) injects explicit coverage/checklist targets and
+  mode-specific operating rules into the campaign directive
+
 ## [1.1.0] - 2026-09-21
 
 ### Added

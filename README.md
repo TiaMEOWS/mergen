@@ -54,6 +54,10 @@ guided by a large curated knowledge base of real techniques.
   standalone re-runnable script (curl `.sh` + stdlib-python `.py`) that replays the exploit
   request and greps for the recorded evidence markers — exit 0 means it reproduces.
     Candidates and duplicates are refused.
+- **`mergen verify` -- fix-regression gate** *(unique)*: replays every exported PoC
+  against a (re)deployment and reports REPRODUCED / FIXED / ERROR per finding.
+  Exit code 1 when anything still fires -- drop it into CI and a "fixed"
+  vulnerability that isn't fixed fails the pipeline.
 - **Scope Firewall** *(unique)*: drop a `scope.json` in the project root (see
   `scope.example.json`) and every network-capable tool — bash, webfetch, hackbrowser,
   http_replay, inject_probe, attack_script — is hard-blocked from touching an
@@ -64,6 +68,21 @@ guided by a large curated knowledge base of real techniques.
   engagement with no human in the loop — recon, mapping, per-class testing,
   evidence-bound confirmation, then report + PoC export. Scope is derived (or
   verified) before the first packet; the firewall stays the hard boundary.
+- **Scan depth modes**: `mergen campaign <target> --mode quick|standard|deep` --
+  high-signal sweep, full methodology, or exhaustive audit (fuzzing, chaining,
+  role matrices) with explicit coverage targets the agent is held to.
+- **SARIF + PDF report export**: `generate_report` can also emit `report.sarif`
+  (SARIF 2.1.0 -- GitHub Code Scanning ready, CWE-keyed rules, severity-mapped
+  levels) and a dependency-free `report.pdf`. Only confirmed, non-duplicate
+  findings enter the SARIF run.
+- **Traffic ingest**: `mergen ingest capture.har` (or a Burp XML export) loads
+  real observed traffic into the session's request table -- structural dedup,
+  path templating, response capture -- so the agent tests what the app actually
+  does instead of guessing endpoints.
+- **Docker sandbox**: `MERGEN_SANDBOX=docker` runs every bash command in a
+  throwaway hardened container (caps dropped, no-new-privileges, pid/memory
+  limits, project mounted at /work). Fail-closed: no daemon, no execution.
+  `MERGEN_SANDBOX_IMAGE`, `MERGEN_SANDBOX_NETWORK=bridge|none|host`.
 - **HackBrowser**: capture and replay real browser traffic during engagements.
 - **Brand-new look**: the "Steppe Night" theme — deep charcoal blues with the
   golden-amber of Mergen's bow.
@@ -82,6 +101,11 @@ guided by a large curated knowledge base of real techniques.
 | Phones home | never — local-first | proxied to hosted domain | varies |
 | Attack skill library | 40+ disciplines, 7.6K files | varies | prompt snippets |
 | Engagement reporting | full report + H1/Intigriti submission drafts | full report | — |
+| Replayable PoC export + `mergen verify` fix-regression gate | exit-code gated CI check on the fix | — | — |
+| SARIF 2.1.0 + PDF report export | GitHub Code Scanning ready | — | — |
+| HAR / Burp traffic ingest | real observed traffic as ground truth | — | — |
+| Sandboxed execution (docker) | hardened throwaway containers, fail-closed | — | — |
+| Scan depth modes (quick/standard/deep) | explicit coverage targets | — | — |
 | `mcp audit` CI command | ✅ exit-code gated | — | — |
 
 ## Platform support
@@ -106,12 +130,39 @@ bun run dev:web    # web app
 ```bash
 mergen campaign https://target.example.com            # scope derived + enforced automatically
 mergen campaign 10.0.0.5 --scope 10.0.0.0/24          # extra scope items
+mergen campaign https://target.example.com --mode deep # exhaustive audit (default: standard)
 ```
 
 One command, no human in the loop: permissions auto-allow, the question tool stays
 off, and the Scope Firewall is the hard boundary. If a `scope.json` already exists,
 the target must be in it -- campaigns never edit an existing scope. The run ends
 with a full report plus exported replayable PoCs under `.mergen/findings/`.
+
+### Verify a fix (CI regression gate)
+
+```bash
+mergen verify                                  # replay everything under .mergen/findings/**/poc
+mergen verify --target https://staging.example.com
+mergen verify .mergen/findings/<session>/poc/vuln-7-sqli.sh -t https://localhost:3000
+```
+
+Every exported PoC self-checks its recorded evidence markers: exit 0 means the
+finding still reproduces (the fix did NOT hold), exit 1 means the markers are
+gone. `mergen verify` aggregates the verdicts and exits 1 when anything
+reproduces -- wire it into a pipeline and a "fixed" vulnerability that still
+fires fails the build.
+
+### Import real traffic
+
+```bash
+mergen ingest capture.har                      # browser devtools export
+mergen ingest burp-export.xml                  # Burp Suite "save items" XML
+mergen ingest capture.har --session ses_abc    # append to an existing session
+```
+
+Requests land in the session's request table with structural dedup (re-importing
+the same capture is a no-op) and light tier-1 normalization (numeric/UUID path
+segments templated to `{id}`), ready for surface mapping and testing.
 
 ## Responsible use
 

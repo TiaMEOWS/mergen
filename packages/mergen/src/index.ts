@@ -1,6 +1,7 @@
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import { RunCommand } from "./cli/cmd/run"
+import { VerifyCommand } from "./cli/cmd/verify"
 import { CampaignCommand } from "./cli/cmd/campaign"
 import { GenerateCommand } from "./cli/cmd/generate"
 import { Log } from "./util/log"
@@ -20,6 +21,7 @@ import { McpCommand } from "./cli/cmd/mcp"
 import { GithubCommand } from "./cli/cmd/github"
 import { ExportCommand } from "./cli/cmd/export"
 import { ImportCommand } from "./cli/cmd/import"
+import { IngestCommand } from "./cli/cmd/ingest"
 import { AttachCommand } from "./cli/cmd/tui/attach"
 import { HackbrowserCommand } from "./cli/cmd/hackbrowser"
 import { TuiThreadCommand } from "./cli/cmd/tui/thread"
@@ -128,6 +130,7 @@ const cli = yargs(hideBin(process.argv))
   .command(AttachCommand)
   .command(HackbrowserCommand)
   .command(RunCommand)
+  .command(VerifyCommand)
   .command(CampaignCommand)
   .command(GenerateCommand)
   .command(DebugCommand)
@@ -141,6 +144,7 @@ const cli = yargs(hideBin(process.argv))
   .command(StatsCommand)
   .command(ExportCommand)
   .command(ImportCommand)
+  .command(IngestCommand)
   .command(GithubCommand)
   .command(PrCommand)
   .command(SessionCommand)
